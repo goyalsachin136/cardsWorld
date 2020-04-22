@@ -1,0 +1,36 @@
+package com.example.accessingdatamysql.model;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+
+@Entity
+@Getter
+@Setter
+@AllArgsConstructor
+@Builder
+@NoArgsConstructor
+public class Game {
+
+    @Id
+    @GeneratedValue(strategy= GenerationType.AUTO)
+    private Long id;
+
+    private String code; // 6 digit all small alphabet
+
+    private Short currentPlayer; // Player who has to move
+
+    private Short trumpCard; // HEARTS(0), DIAMOND(1), SPADE(2), CLUBS(3) --> bracket number represent card number / 13
+
+    private Short numberOfPlayers;
+
+    private Short numberOfCards; // 0 to 51
+
+}
