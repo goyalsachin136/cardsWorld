@@ -45,10 +45,39 @@ public class PlayerServiceImpl implements PlayerService {
     }
 
     @Override
+    public Player getByGameCodeAndNumericCode(String gameCode, short numericCode) {
+        return this.playerRepository.findByGameCodeAndNumericCode(gameCode, numericCode);
+    }
+
+    @Override
     public void updatePlayers(List<Player> players) {
         if (CollectionUtils.isEmpty(players)) {
             return;
         }
         this.playerRepository.saveAll(players);
+    }
+
+    @Override
+    public Player getByCode(String code) {
+        return this.playerRepository.findByCode(code);
+    }
+
+    @Override
+    public void removeCard(String code, short card) {
+        Player player = this.playerRepository.findByCode(code);
+        if (null == player) {
+            throw new RuntimeException("Invalid player code");
+        }
+        List<Short> allCards = player.getAllCards();
+        if (allCards.isEmpty()) {
+            throw new RuntimeException("No cards left to move for player " + player.getNumericCode());
+        }
+        if (! allCards.contains(card)) {
+            throw new RuntimeException("card " + CommonUtil.getDisplayStringForCard(card) +
+                    " not present in deck of player " + player.getNumericCode());
+        }
+        allCards.remove(card);
+        player.setCardsLeftFromList(allCards);
+        this.playerRepository.save(player);
     }
 }

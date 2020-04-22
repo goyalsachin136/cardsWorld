@@ -25,12 +25,26 @@ public class Game {
 
     private String code; // 6 digit all small alphabet
 
-    private Short currentPlayer; // Player who has to move
+    private Short currentPlayer; // Player who has to move -- numeric code
 
     private Short trumpCard; // HEARTS(0), DIAMOND(1), SPADE(2), CLUBS(3) --> bracket number represent card number / 13
+
+    private String trumpSetByPlayerCode;
+
+    private Boolean isTrumpOpen;
 
     private Short numberOfPlayers;
 
     private Short numberOfCards; // 0 to 51
+
+    public short getNextPlayerToMove() {
+        if (null == currentPlayer) {
+            throw new RuntimeException("First decide winner of current game set");
+        }
+        if (currentPlayer.equals(numberOfPlayers)) {
+            return (short)1;
+        }
+        return (short)(currentPlayer + 1);
+    }
 
 }

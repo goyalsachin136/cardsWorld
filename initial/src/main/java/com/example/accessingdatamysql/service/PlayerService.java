@@ -11,5 +11,11 @@ public interface PlayerService {
 
     List<Player> getByGameCode(String gameCode);
 
+    Player getByGameCodeAndNumericCode(String gameCode, short numericCode);
+
     void updatePlayers(List<Player> players);
+
+    Player getByCode(String code);
+
+    void removeCard(String code, short card);
 }

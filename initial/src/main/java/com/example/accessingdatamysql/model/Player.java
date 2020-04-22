@@ -37,13 +37,25 @@ public class Player {
 
     private String cardsLeft; // comma separated numbers
 
-    private String setWonList; // comma separated sets ids
+    //TODO leave it for now as there is winnerPlayerCode in card set
+    //private String setWonList; // comma separated sets ids ,
 
     public List<Short> getAllCards() {
         if (null == cardsLeft) {
             return Collections.emptyList();
         }
         return Arrays.asList(cardsLeft.split(",")).stream().map(x -> new Short(x)).collect(Collectors.toList());
+    }
+
+    public void setCardsLeftFromList(List<Short> cardsLeftFromList) {
+        if (cardsLeftFromList.isEmpty()) {
+            this.cardsLeft = null;
+        } else {
+            this.cardsLeft = null;
+            for (int i =0; i < cardsLeftFromList.size(); i++) {
+                this.addCard(cardsLeftFromList.get(i));
+            }
+        }
     }
 
     public void addCard(short card) {

@@ -11,4 +11,6 @@ public interface PlayerRepository extends CrudRepository<Player, Integer> {
     Player findByGameCodeAndNumericCode(String gameCode, short numericCode);
 
     List<Player> findByGameCode(String gameCode);
+
+    Player findByCode(String code);
 }
