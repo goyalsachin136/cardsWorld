@@ -1,5 +1,7 @@
 package com.example.accessingdatamysql;
 
+import com.example.accessingdatamysql.dto.GameStateDTO;
+import com.example.accessingdatamysql.dto.PlayerGamePanelDTO;
 import com.example.accessingdatamysql.service.GamerService;
 import com.example.accessingdatamysql.service.PlayerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,5 +58,42 @@ public class MainController {
     public @ResponseBody String distributeCards (@RequestParam(required = false) Integer numberOfCardsPerPlayer, @RequestParam String gameCode) {
         this.gamerService.distributeCards(numberOfCardsPerPlayer, gameCode);
         return "Done";
+    }
+
+    @PostMapping(path="/setLeader") // Map ONLY POST Requests
+    public @ResponseBody void setLeader (@RequestParam String gameCode, @RequestParam String playerCode) {
+        gamerService.setLeader(gameCode, playerCode);
+    }
+
+    @PostMapping(path="/openTrump") // Map ONLY POST Requests
+    public @ResponseBody void openTrump (@RequestParam String gameCode, @RequestParam String playerCode) {
+        gamerService.openTrump(gameCode, playerCode);
+    }
+
+    @PostMapping(path="/setTrump") // Map ONLY POST Requests
+    public @ResponseBody void setTrump (@RequestParam short trump, @RequestParam String gameCode, @RequestParam String playerCode) {
+        gamerService.setTrump(trump, gameCode, playerCode);
+    }
+
+    @PostMapping(path="/moveCard") // Map ONLY POST Requests
+    public @ResponseBody void moveCard (@RequestParam short card, @RequestParam String gameCode, @RequestParam String playerCode) {
+        gamerService.moveCard(card, playerCode, gameCode);
+    }
+
+    @PostMapping(path="/chooseWinner") // Map ONLY POST Requests
+    public @ResponseBody void chooseWinner (@RequestParam short winnerPlayerNumericCode,
+                                            @RequestParam String gameCode, @RequestParam String adminPlayerCode) {
+        gamerService.chooseWinner(adminPlayerCode, winnerPlayerNumericCode, gameCode);
+    }
+
+    @GetMapping(path="/gameState")
+    public @ResponseBody GameStateDTO getGameState(@RequestParam String gameCode) {
+        return gamerService.getGameState(gameCode);
+    }
+
+
+    @GetMapping(path="/playerState")
+    public @ResponseBody PlayerGamePanelDTO getPlayerState(@RequestParam String playerCode) {
+        return gamerService.getPlayerStat(playerCode);
     }
 }

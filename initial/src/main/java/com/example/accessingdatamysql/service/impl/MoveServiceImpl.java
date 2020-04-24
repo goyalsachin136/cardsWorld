@@ -27,7 +27,8 @@ public class MoveServiceImpl implements MoveService {
         if (null == player) {
             throw new RuntimeException("Invalid player code");
         }
-        List<Short> cardsLeft = player.getAllCards();
+        //these validation already covered in player service
+        /*List<Short> cardsLeft = player.getAllCards();
 
         if (cardsLeft.isEmpty()) {
             throw new RuntimeException("No card left with player " + player.getNumericCode());
@@ -35,7 +36,17 @@ public class MoveServiceImpl implements MoveService {
         if (!cardsLeft.contains(card)) {
             throw new RuntimeException("Player " + player.getNumericCode() + " does not have card "
                     + getDisplayStringForCard(card));
-        }
+        }*/
         return this.moveRepository.save(Move.builder().gameCode(gameCode).card(card).playerCode(playerCode).isActive(true).build());
+    }
+
+    @Override
+    public List<Move> getByIds(List<Long> moveIds) {
+        return this.moveRepository.findByIdIn(moveIds);
+    }
+
+    @Override
+    public List<Move> getByGameCode(String gameCode) {
+        return this.moveRepository.findByGameCode(gameCode);
     }
 }

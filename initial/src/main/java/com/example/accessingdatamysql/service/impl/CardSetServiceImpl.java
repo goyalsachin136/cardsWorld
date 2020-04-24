@@ -6,6 +6,8 @@ import com.example.accessingdatamysql.service.CardSetService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class CardSetServiceImpl implements CardSetService {
 
@@ -27,6 +29,11 @@ public class CardSetServiceImpl implements CardSetService {
     @Override
     public CardSet getActiveCardSet(String gameCode) {
         return this.cardSetRepository.findByGameCodeAndIsCurrentSetIsTrue(gameCode);
+    }
+
+    @Override
+    public List<CardSet> getByGameCode(String gameCode) {
+        return this.cardSetRepository.findByGameCode(gameCode);
     }
 
     @Override

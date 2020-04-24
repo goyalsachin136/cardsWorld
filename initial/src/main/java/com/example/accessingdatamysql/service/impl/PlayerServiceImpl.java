@@ -76,7 +76,7 @@ public class PlayerServiceImpl implements PlayerService {
             throw new RuntimeException("card " + CommonUtil.getDisplayStringForCard(card) +
                     " not present in deck of player " + player.getNumericCode());
         }
-        allCards.remove(card);
+        allCards.remove(allCards.indexOf(card));
         player.setCardsLeftFromList(allCards);
         this.playerRepository.save(player);
     }

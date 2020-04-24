@@ -1,12 +1,14 @@
 package com.example.accessingdatamysql.service.impl;
 
-import com.example.accessingdatamysql.UserRepository;
 import com.example.accessingdatamysql.dto.GameStateDTO;
 import com.example.accessingdatamysql.dto.PlayerGamePanelDTO;
+import com.example.accessingdatamysql.enums.CardType;
 import com.example.accessingdatamysql.model.CardSet;
 import com.example.accessingdatamysql.model.Game;
 import com.example.accessingdatamysql.model.Move;
 import com.example.accessingdatamysql.model.Player;
+import com.example.accessingdatamysql.pojo.CardSetDTO;
+import com.example.accessingdatamysql.pojo.PlayerInfoDTO;
 import com.example.accessingdatamysql.repository.GameRepository;
 import com.example.accessingdatamysql.service.CardSetService;
 import com.example.accessingdatamysql.service.GamerService;
@@ -17,10 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
-import javax.smartcardio.Card;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -243,6 +243,9 @@ public class GamerServiceImpl implements GamerService {
         if (null == player) {
             throw new RuntimeException("Invalid adminPlayerCode");
         }
+        if (!player.getNumericCode().equals((short)1)) {
+            throw new RuntimeException("Only admin can choose winner");
+        }
         Player winnerPlayer = this.playerService.getByGameCodeAndNumericCode(gameCode, winnerPlayerNumericCode);
         if (null == winnerPlayer) {
             throw new RuntimeException("Invalid winner numeric code");
@@ -252,9 +255,20 @@ public class GamerServiceImpl implements GamerService {
             throw new RuntimeException("Invalid game code " + gameCode);
         }
         CardSet cardSet = this.cardSetService.getActiveCardSet(gameCode);
-        if (null == cardSet) {
+
+        List<Move> moves = this.moveService.getByGameCode(gameCode);
+
+        // if no active cardSet in progress and game is initialized
+        if (null == cardSet && !moves.isEmpty()) {
             throw new RuntimeException("No card set in progress. Player " + game.getCurrentPlayer() + " has to start game");
         }
+
+        // game initlialising condition
+        if (null == cardSet && moves.isEmpty()) {
+            game.setCurrentPlayer(winnerPlayerNumericCode);
+            return;
+        }
+
         if (!isMoveEndMoveOfSet(game.getNumberOfPlayers(), cardSet)) {
             throw new RuntimeException("Card set still in progress, admin cannot choose winner");
         }
@@ -273,9 +287,108 @@ public class GamerServiceImpl implements GamerService {
         return false;
     }
 
+    private List<PlayerInfoDTO> getFromCardSetListAndPlayersList(List<CardSet> cardSets, List<Player> players) {
+       Map<String, Long> playerCodeToSetsWonCount = cardSets.stream()
+               .filter(cardSet -> null != cardSet.getWinnerPlayerCode())
+               .collect(Collectors.groupingBy(CardSet::getWinnerPlayerCode, Collectors.counting()));
+
+        List<PlayerInfoDTO> playerInfoDTOS = new ArrayList<>();
+       for (Player player: players) {
+           PlayerInfoDTO playerInfoDTO = new PlayerInfoDTO();
+           playerInfoDTO.setNumericCode(player.getNumericCode());
+           playerInfoDTO.setSetsWon(playerCodeToSetsWonCount.containsKey(player.getCode())
+                   ? playerCodeToSetsWonCount.get(player.getCode()).intValue() : 0);
+           playerInfoDTO.setCardsLeft((short) player.getAllCards().size());
+           playerInfoDTOS.add(playerInfoDTO);
+       }
+       return playerInfoDTOS;
+    }
+
     @Override
     public GameStateDTO getGameState(String gameCode) {
-        return null;
+        GameStateDTO gameStateDTO = new GameStateDTO();
+
+        Game game = this.gameRepository.findByCode(gameCode);
+        if (null == game) {
+            throw new RuntimeException("Invalid game code " + gameCode);
+        }
+
+        gameStateDTO.setGameCode(gameCode);
+        gameStateDTO.setPlayerToMove(game.getCurrentPlayer());
+        gameStateDTO.setTrumpCard(Boolean.TRUE.equals(game.getIsTrumpOpen())
+                ? CardType.getFromIndex(game.getTrumpCard()).name() : null);
+
+        List<Player> players = this.playerService.getByGameCode(gameCode);
+        Map<String, Short> playerCodeToNumericCode = players.stream()
+                .filter(code -> null != code)
+                .collect(Collectors.toMap(Player::getCode, Player::getNumericCode));
+
+        if (null != game.getTrumpSetByPlayerCode()) {
+            gameStateDTO.setTrumpDeclaredBy(playerCodeToNumericCode.get(game.getTrumpSetByPlayerCode()));
+        }
+
+        //gameStateToDisplay
+
+
+        List<CardSet> cardSets = this.cardSetService.getByGameCode(gameCode);
+
+        gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players));
+
+
+
+
+        CardSet activeCardSet = cardSets.stream().filter(cardSet -> Boolean.TRUE.equals(cardSet.getIsCurrentSet()))
+                .findFirst().orElse(null);
+
+        if (null == activeCardSet) {
+            // waiting for 1st move of set
+            //return gameStateDTO;
+            // no active card set in progress
+        } else if (null != activeCardSet && !activeCardSet.getAllMoveIds().isEmpty()) {
+            // card set in progress
+            List<Move> moves = this.moveService.getByIds(activeCardSet.getAllMoveIds());
+            gameStateDTO.setCardSetDTOS(this.getFromMoves(moves, playerCodeToNumericCode));
+        }
+
+        //List<CardSet> cardSets = this.cardSetService.getByGameCode(gameCode);
+
+        // no move still
+        gameStateDTO.setGameStateToDisplay("");
+        if (cardSets.isEmpty()) {
+
+            if (players.get(0).getAllCards().size() != game.getNumberOfCards() / game.getNumberOfPlayers()) {
+                gameStateDTO.setGameStateToDisplay("Admin distribute all cards please");
+            }
+
+            if (null == game.getTrumpCard()) {
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" Choose trump "));
+            }
+
+            if (null == game.getCurrentPlayer()) {
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" set leader for game start"));
+            }
+
+            if (null != game.getCurrentPlayer()) {
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                        .concat(" Player " + game.getCurrentPlayer() + " it's your move"));
+            }
+        } else if (null != game.getCurrentPlayer()) {
+            gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                    .concat(" Player " + game.getCurrentPlayer() + " it's your move"));
+        } else if (null == game.getCurrentPlayer()) {
+            gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                    .concat(" Admin  choose winner for current set "));
+        }
+        return gameStateDTO;
+    }
+
+    private List<CardSetDTO> getFromMoves(List<Move> moves, Map<String, Short> playerCodeToNumericCode) {
+        List<CardSetDTO> cardSetDTOS = new ArrayList<>();
+        for (Move move: moves) {
+            cardSetDTOS.add(new CardSetDTO(CommonUtil.getDisplayStringForCard(move.getCard()),
+                    playerCodeToNumericCode.get(move.getPlayerCode())));
+        }
+        return cardSetDTOS;
     }
 
     @Override
