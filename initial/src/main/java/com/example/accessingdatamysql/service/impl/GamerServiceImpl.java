@@ -7,6 +7,7 @@ import com.example.accessingdatamysql.model.CardSet;
 import com.example.accessingdatamysql.model.Game;
 import com.example.accessingdatamysql.model.Move;
 import com.example.accessingdatamysql.model.Player;
+import com.example.accessingdatamysql.pojo.CardPOJO;
 import com.example.accessingdatamysql.pojo.CardSetDTO;
 import com.example.accessingdatamysql.pojo.PlayerInfoDTO;
 import com.example.accessingdatamysql.repository.GameRepository;
@@ -393,6 +394,27 @@ public class GamerServiceImpl implements GamerService {
 
     @Override
     public PlayerGamePanelDTO getPlayerStat(String playerCode) {
-        return null;
+        PlayerGamePanelDTO playerGamePanelDTO = new PlayerGamePanelDTO();
+        Player player = this.playerService.getByCode(playerCode);
+        if (null == player) {
+            throw new RuntimeException("Invalid player code");
+        }
+        playerGamePanelDTO.setCardPOJOList(player.getAllCards().stream()
+                .map(card -> new CardPOJO(card, CommonUtil.getDisplayStringForCard(card)))
+                .collect(Collectors.toList())
+        );
+        Game game = this.gameRepository.findByCode(player.getGameCode());
+        if (game.getTrumpSetByPlayerCode().equals(playerCode)) {
+            playerGamePanelDTO.setTrumpCard(CardType.getFromIndex(game.getTrumpCard()).name());
+        }
+        playerGamePanelDTO.setPlayerCode(playerCode);
+        playerGamePanelDTO.setOpenTrumpButton(!game.getIsTrumpOpen());
+
+        List<CardSet> cardSets = this.cardSetService.getByGameCode(player.getGameCode());
+
+        playerGamePanelDTO.setSetsWon((short) cardSets.stream()
+                .filter(cardSet -> playerCode.equals(cardSet.getWinnerPlayerCode())).count());
+        playerGamePanelDTO.setAdminPlayerNumericCode((short) 1);
+        return playerGamePanelDTO;
     }
 }
