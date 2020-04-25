@@ -18,6 +18,7 @@ public class GameStateDTO {
     private Short playerToMove;
     private String trumpCard; // to show if trump is open
     private Short trumpDeclaredBy;
+    private Boolean canGameBeStarted;
     private String gameStateToDisplay; // admin distribute x number of cards, choose trump will be done by player itself,
     //admin distribute remaining cards,  %s player to move, admin  choose winner for this set,  game ended,
 

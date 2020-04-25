@@ -37,6 +37,8 @@ public class Game {
 
     private Short numberOfCards; // 0 to 51
 
+    private Boolean canGameBeStarted;
+
     public short getNextPlayerToMove() {
         if (null == currentPlayer) {
             throw new RuntimeException("First decide winner of current game set");

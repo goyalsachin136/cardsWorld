@@ -2,6 +2,7 @@ package com.example.accessingdatamysql;
 
 import com.example.accessingdatamysql.dto.GameStateDTO;
 import com.example.accessingdatamysql.dto.PlayerGamePanelDTO;
+import com.example.accessingdatamysql.dto.ResponseDTO;
 import com.example.accessingdatamysql.service.GamerService;
 import com.example.accessingdatamysql.service.PlayerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,20 +45,20 @@ public class MainController {
         return userRepository.findAll();
     }
 
-    @PostMapping(path="/addGame") // Map ONLY POST Requests
-    public @ResponseBody String addNewGame (@RequestParam int numberOfPlayers, @RequestParam int numberOfCards) {
-        return gamerService.createGame(numberOfPlayers, numberOfCards);
+    @PostMapping(path="/addGame", produces = { "application/json" }) // Map ONLY POST Requests
+    public @ResponseBody ResponseDTO addNewGame (@RequestParam int numberOfPlayers, @RequestParam int numberOfCards) {
+        return new ResponseDTO(null, gamerService.createGame(numberOfPlayers, numberOfCards));
     }
 
     @PostMapping(path="/enterGame") // Map ONLY POST Requests
-    public @ResponseBody String enterGame (@RequestParam int numericId, @RequestParam String gameCode) {
-        return playerService.enterGame((short)numericId, gameCode);
+    public @ResponseBody ResponseDTO enterGame (@RequestParam int numericId, @RequestParam String gameCode) {
+        return new ResponseDTO(null, playerService.enterGame((short)numericId, gameCode));
     }
 
     @PostMapping(path="/distributeCards") // Map ONLY POST Requests
-    public @ResponseBody String distributeCards (@RequestParam(required = false) Integer numberOfCardsPerPlayer, @RequestParam String gameCode) {
+    public @ResponseBody ResponseDTO distributeCards (@RequestParam(required = false) Integer numberOfCardsPerPlayer, @RequestParam String gameCode) {
         this.gamerService.distributeCards(numberOfCardsPerPlayer, gameCode);
-        return "Done";
+        return new ResponseDTO(null, numberOfCardsPerPlayer + " cards distributed per person");
     }
 
     @PostMapping(path="/setLeader") // Map ONLY POST Requests
@@ -66,18 +67,21 @@ public class MainController {
     }
 
     @PostMapping(path="/openTrump") // Map ONLY POST Requests
-    public @ResponseBody void openTrump (@RequestParam String gameCode, @RequestParam String playerCode) {
+    public @ResponseBody ResponseDTO openTrump (@RequestParam String gameCode, @RequestParam String playerCode) {
         gamerService.openTrump(gameCode, playerCode);
+        return new ResponseDTO(null, "Trump opened");
     }
 
     @PostMapping(path="/setTrump") // Map ONLY POST Requests
-    public @ResponseBody void setTrump (@RequestParam short trump, @RequestParam String gameCode, @RequestParam String playerCode) {
+    public @ResponseBody ResponseDTO setTrump (@RequestParam short trump, @RequestParam String gameCode, @RequestParam String playerCode) {
         gamerService.setTrump(trump, gameCode, playerCode);
+        return new ResponseDTO(null, "Trump set");
     }
 
     @PostMapping(path="/moveCard") // Map ONLY POST Requests
-    public @ResponseBody void moveCard (@RequestParam short card, @RequestParam String gameCode, @RequestParam String playerCode) {
+    public @ResponseBody ResponseDTO moveCard (@RequestParam short card, @RequestParam String gameCode, @RequestParam String playerCode) {
         gamerService.moveCard(card, playerCode, gameCode);
+        return new ResponseDTO(null, "Card moved");
     }
 
     @PostMapping(path="/chooseWinner") // Map ONLY POST Requests

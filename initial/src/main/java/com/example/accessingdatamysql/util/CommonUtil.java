@@ -19,13 +19,24 @@ public class CommonUtil {
         return generatedString;
     }
 
+    public static CardType getCardType(short card) {
+        short index = (short) (card/13);
+        return CardType.getFromIndex(index);
+    }
+
+    public static short getCardNumber(short card) {
+        short cardNumber = (short) (card % 13);
+        return cardNumber;
+    }
+
     // card number will be from 0 to 51 inclusive
     // HEARTS(0), DIAMOND(1), SPADE(2), CLUBS(3) --> bracket number represent card number / 13
     public static String getDisplayStringForCard(short card) {
-        short index = (short) (card/13);
-        CardType cardType = CardType.getFromIndex(index);
-        int cardNumber = index % 13;
-
+        CardType cardType = getCardType(card);
+        if (cardType == null) {
+            return "";
+        }
+        short cardNumber = getCardNumber(card);
         if (cardNumber == 0) {
             return String.format("%s-%s", "A", cardType.name());
         }

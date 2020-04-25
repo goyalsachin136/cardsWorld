@@ -22,6 +22,8 @@ import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +48,7 @@ public class GamerServiceImpl implements GamerService {
 
     @Override
     public String createGame(int numberOfPlayers, int numberOfCards) {
+        System.out.println("createGame numberOfCards " + numberOfCards + " numberOfPlayers " + numberOfPlayers);
         if (numberOfPlayers < 2 || numberOfPlayers > 4) {
             throw new RuntimeException("invalid player count " + numberOfPlayers);
         }
@@ -105,13 +108,13 @@ public class GamerServiceImpl implements GamerService {
             throw new RuntimeException("invalid trump card");
         }
         game.setTrumpCard(trump);
-
         Player player = this.playerService.getByCode(playerCode);
 
         if (null == player) {
             throw new RuntimeException("Invalid player code");
         }
         game.setTrumpSetByPlayerCode(player.getCode());
+        game.setCurrentPlayer(player.getNumericCode());
         this.gameRepository.save(game);
     }
 
@@ -123,6 +126,9 @@ public class GamerServiceImpl implements GamerService {
         }
         if (!playerCode.equalsIgnoreCase(game.getTrumpSetByPlayerCode())) {
             throw new RuntimeException("Not privileged to open trump card");
+        }
+        if (Boolean.TRUE.equals(game.getIsTrumpOpen())) {
+            throw new RuntimeException("Trump already open");
         }
         game.setIsTrumpOpen(true);
         this.gameRepository.save(game);
@@ -184,6 +190,10 @@ public class GamerServiceImpl implements GamerService {
         short currentPlayerWhichWillGetCard =  (short)(leaderPlayer != players.size() ? leaderPlayer + 1 : 1);
 
         int counter = 0;
+        if (totalCardsToBeDistributed > totalUndistributedCards) {
+            throw new RuntimeException("Only " + totalUndistributedCards/players.size() +
+                    " cards per person are left");
+        }
         while (totalUndistributedCards != 0 && totalCardsToBeDistributed != 0) {
             numericIdToPlayerMap.get(currentPlayerWhichWillGetCard).addCard(undistributedCards.get(counter));
 
@@ -193,6 +203,11 @@ public class GamerServiceImpl implements GamerService {
             totalUndistributedCards--;
             totalCardsToBeDistributed--;
             counter++;
+        }
+        if (totalCardsToBeDistributed == totalUndistributedCards) {
+            Game game = this.gameRepository.findByCode(gameCode);
+            game.setCanGameBeStarted(true);
+            this.gameRepository.save(game);
         }
         this.playerService.updatePlayers(players);
     }
@@ -220,11 +235,28 @@ public class GamerServiceImpl implements GamerService {
             throw new RuntimeException("Invalid move. Currently player " + game.getCurrentPlayer() + " has to move");
         }
 
+        CardSet cardSet = this.cardSetService.getActiveCardSet(gameCode);
+
+        if (null != cardSet && !CollectionUtils.isEmpty(cardSet.getAllMoveIds())) {
+            List<Move> moves = this.moveService.getByIds(cardSet.getAllMoveIds());
+            Move move = moves.get(0);
+            CardType requiredCardType = CommonUtil.getCardType(move.getCard());
+            if (requiredCardType.equals(CommonUtil.getCardType(card))) {
+                //okay
+            } else {
+                List<Short> allCards = player.getAllCards();
+                CardType cardTypeFound = allCards.stream().map(cardNumber -> CommonUtil.getCardType(cardNumber))
+                        .filter(cardTypeHere -> requiredCardType.equals(cardTypeHere)).findFirst().orElse(null);
+                if (null != cardTypeFound) {
+                    throw new RuntimeException("Please move " + cardTypeFound.name() + " Please move carefully ");
+                }
+            }
+        }
         this.playerService.removeCard(playerCode, card);
 
         Move move = this.moveService.createMove(gameCode, card, playerCode);
 
-        CardSet cardSet = this.cardSetService.updateCardSet(gameCode, move.getId());
+        cardSet = this.cardSetService.updateCardSet(gameCode, move.getId());
 
         boolean isMoveEndMove = isMoveEndMoveOfSet(game.getNumberOfPlayers(), cardSet);
 
@@ -247,6 +279,10 @@ public class GamerServiceImpl implements GamerService {
         if (!player.getNumericCode().equals((short)1)) {
             throw new RuntimeException("Only admin can choose winner");
         }
+        this.chooseWinner(gameCode, winnerPlayerNumericCode);
+    }
+
+    private void chooseWinner(String gameCode, short winnerPlayerNumericCode) {
         Player winnerPlayer = this.playerService.getByGameCodeAndNumericCode(gameCode, winnerPlayerNumericCode);
         if (null == winnerPlayer) {
             throw new RuntimeException("Invalid winner numeric code");
@@ -320,14 +356,20 @@ public class GamerServiceImpl implements GamerService {
                 ? CardType.getFromIndex(game.getTrumpCard()).name() : null);
 
         List<Player> players = this.playerService.getByGameCode(gameCode);
-        Map<String, Short> playerCodeToNumericCode = players.stream()
+        /*Map<String, Short> playerCodeToNumericCode = players.stream()
                 .filter(code -> null != code)
-                .collect(Collectors.toMap(Player::getCode, Player::getNumericCode));
+                .collect(Collectors.toMap(Player::getCode, Player::getNumericCode));*/
+        Map<String, Short> playerCodeToNumericCode = new HashMap<>();
+
+        for (Player player: players) {
+            if (null != player.getCode())
+                playerCodeToNumericCode.put(player.getCode(), player.getNumericCode());
+        }
 
         if (null != game.getTrumpSetByPlayerCode()) {
             gameStateDTO.setTrumpDeclaredBy(playerCodeToNumericCode.get(game.getTrumpSetByPlayerCode()));
         }
-
+        gameStateDTO.setCanGameBeStarted(game.getCanGameBeStarted());
         //gameStateToDisplay
 
 
@@ -358,27 +400,28 @@ public class GamerServiceImpl implements GamerService {
         if (cardSets.isEmpty()) {
 
             if (players.get(0).getAllCards().size() != game.getNumberOfCards() / game.getNumberOfPlayers()) {
-                gameStateDTO.setGameStateToDisplay("Admin distribute all cards please");
+                gameStateDTO.setGameStateToDisplay("Admin distribute all cards please\n");
             }
 
             if (null == game.getTrumpCard()) {
-                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" Choose trump "));
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" Choose trump \n"));
+                return gameStateDTO;
             }
 
             if (null == game.getCurrentPlayer()) {
-                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" set leader for game start"));
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" set leader for game start\n"));
             }
 
             if (null != game.getCurrentPlayer()) {
                 gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
-                        .concat(" Player " + game.getCurrentPlayer() + " it's your move"));
+                        .concat(" Player " + game.getCurrentPlayer() + " it's your move\n"));
             }
         } else if (null != game.getCurrentPlayer()) {
             gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
-                    .concat(" Player " + game.getCurrentPlayer() + " it's your move"));
+                    .concat(" Player " + game.getCurrentPlayer() + " it's your move\n"));
         } else if (null == game.getCurrentPlayer()) {
             gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
-                    .concat(" Admin  choose winner for current set "));
+                    .concat(" Admin  choose winner for current set \n"));
         }
         return gameStateDTO;
     }
@@ -387,28 +430,38 @@ public class GamerServiceImpl implements GamerService {
         List<CardSetDTO> cardSetDTOS = new ArrayList<>();
         for (Move move: moves) {
             cardSetDTOS.add(new CardSetDTO(CommonUtil.getDisplayStringForCard(move.getCard()),
-                    playerCodeToNumericCode.get(move.getPlayerCode())));
+                    playerCodeToNumericCode.get(move.getPlayerCode()), CommonUtil.getCardType(move.getCard()))
+            );
         }
         return cardSetDTOS;
     }
 
     @Override
     public PlayerGamePanelDTO getPlayerStat(String playerCode) {
+        System.out.println("getPlayerStat "+  playerCode);
         PlayerGamePanelDTO playerGamePanelDTO = new PlayerGamePanelDTO();
         Player player = this.playerService.getByCode(playerCode);
         if (null == player) {
             throw new RuntimeException("Invalid player code");
         }
-        playerGamePanelDTO.setCardPOJOList(player.getAllCards().stream()
-                .map(card -> new CardPOJO(card, CommonUtil.getDisplayStringForCard(card)))
-                .collect(Collectors.toList())
-        );
+        playerGamePanelDTO.setPlayerNumericCode(player.getNumericCode());
+        List<CardPOJO> cardPOJOS = player.getAllCards().stream()
+                .map(card -> new CardPOJO(card, CommonUtil.getCardType(card),
+                        CommonUtil.getDisplayStringForCard(card)))
+                .collect(Collectors.toList());
+        Map<CardType, List<CardPOJO>> cardTypeListMap = cardPOJOS.stream()
+                .collect(Collectors.groupingBy(cardPOJO -> cardPOJO.getCardType(),
+                        Collectors.toList()));
+        cardTypeListMap.values().forEach(list -> list.sort(Comparator.comparing(CardPOJO::getCard)));
+
+        playerGamePanelDTO.setCardTypeToCardDisplayStringMap(cardTypeListMap);
+
         Game game = this.gameRepository.findByCode(player.getGameCode());
-        if (game.getTrumpSetByPlayerCode().equals(playerCode)) {
+        if (playerCode.equals(game.getTrumpSetByPlayerCode())) {
             playerGamePanelDTO.setTrumpCard(CardType.getFromIndex(game.getTrumpCard()).name());
         }
         playerGamePanelDTO.setPlayerCode(playerCode);
-        playerGamePanelDTO.setOpenTrumpButton(!game.getIsTrumpOpen());
+        playerGamePanelDTO.setOpenTrumpButton(!Boolean.TRUE.equals(game.getIsTrumpOpen()));
 
         List<CardSet> cardSets = this.cardSetService.getByGameCode(player.getGameCode());
 
