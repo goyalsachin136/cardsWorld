@@ -14,14 +14,25 @@ public class CardSetServiceImpl implements CardSetService {
     @Autowired
     private CardSetRepository cardSetRepository;
 
+    /**
+     * Update latest winner and append move id
+     * @param gameCode
+     * @param moveId
+     * @return
+     */
     @Override
-    public CardSet updateCardSet(String gameCode, Long moveId) {
+    public CardSet updateCardSet(String gameCode, Long moveId, Long bestMoveIdTillNow) {
         CardSet cardSet = this.cardSetRepository.findByGameCodeAndIsCurrentSetIsTrue(gameCode);
         if (null == cardSet) {
             // new cardSet creation
-            cardSet = CardSet.builder().gameCode(gameCode).moveIds(moveId.toString()).isCurrentSet(true).build();
+            cardSet = CardSet.builder().gameCode(gameCode)
+                    .moveIds(moveId.toString())
+                    .isCurrentSet(true)
+                    .bestMoveIdTillNow(bestMoveIdTillNow)
+                    .build();
         } else {
             cardSet.addMoveId(moveId);
+            cardSet.setBestMoveIdTillNow(bestMoveIdTillNow);
         }
         return this.cardSetRepository.save(cardSet);
     }

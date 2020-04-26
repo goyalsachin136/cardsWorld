@@ -34,6 +34,8 @@ public class CardSet {
 
     private String winnerPlayerCode;
 
+    private Long bestMoveIdTillNow;
+
     public List<Long> getAllMoveIds() {
         if (null == moveIds) {
             return Collections.emptyList();

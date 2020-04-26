@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import javax.annotation.PostConstruct;
+import javax.smartcardio.Card;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -312,20 +313,22 @@ public class GamerServiceImpl implements GamerService {
         }
         this.playerService.removeCard(playerCode, card);
 
-        Move move = this.moveService.createMove(gameCode, card, playerCode);
+        Move thisMove = this.moveService.createMove(gameCode, card, playerCode);
 
-        cardSet = this.cardSetService.updateCardSet(gameCode, move.getId());
+
+
+        //After every move check winner and set in card_set
+        //calculate winner
+        String winnerPlayerCodeTillNowForThisSet = this.getWinner(gameCode, thisMove, game.getTrumpCard(), game.getIsTrumpOpen());
+
 
         boolean isMoveEndMove = isMoveEndMoveOfSet(game.getNumberOfPlayers(), cardSet);
 
         if (isMoveEndMove) {
             game.setCurrentPlayer(null);
-            //calculate winner
-            List<Move> moves = this.moveService.getByIds(cardSet.getAllMoveIds());
-            String winnerPlayerCode = this.getWinner(moves, game.getTrumpCard(), game.getIsTrumpOpen());
-            Player winnerPlayer = this.playerService.getByCode(winnerPlayerCode);
 
             new Thread(() -> {
+                Player winnerPlayer = this.playerService.getByCode(winnerPlayerCodeTillNowForThisSet);
                 System.out.println("Calculating winner in new thread");
                 try {
                     Thread.sleep(5000);
@@ -345,25 +348,47 @@ public class GamerServiceImpl implements GamerService {
 
     //moves in order
     //best player code
-    private String getWinner(List<Move> moves, Short trumpCard, Boolean isTrumpOpen) {
+    private String getWinner(String gameCode, Move latestMove, Short trumpCard, Boolean isTrumpOpen) {
+        CardSet cardSet = this.cardSetService.getActiveCardSet(gameCode);
+        Long bestMoveIdTillNow = null;
+
+        if (null != cardSet) {
+            bestMoveIdTillNow = cardSet.getBestMoveIdTillNow();
+        }
+
+        if (null == bestMoveIdTillNow) {
+            //1st move
+            this.cardSetService.updateCardSet(gameCode, latestMove.getId(), latestMove.getId());
+            return latestMove.getPlayerCode();
+        }
+
+        List<Move> movesToCompare = new ArrayList<>();
+        Move bestMoveTillNow = this.moveService.getByIds(Collections.singletonList(cardSet.getBestMoveIdTillNow())).get(0);
+        movesToCompare.add(bestMoveTillNow);
+        movesToCompare.add(latestMove);
+
         if (null != trumpCard && Boolean.TRUE.equals(isTrumpOpen)) {
             CardType trumpCardType = CardType.getFromIndex(trumpCard);
-            boolean bestMoveInTrumpPresent = moves.stream()
+
+            boolean bestMoveInTrumpPresent = movesToCompare.stream()
                     .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(trumpCardType))
                     .max(Move::compare)
                     .isPresent();
             if (bestMoveInTrumpPresent) {
-                return moves.stream()
+                Move bestMove = movesToCompare.stream()
                         .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(trumpCardType))
-                        .max(Move::compare).get().getPlayerCode();
+                        .max(Move::compare).get();
+                this.cardSetService.updateCardSet(gameCode, latestMove.getId(), bestMove.getId());
+                return bestMove.getPlayerCode();
             }
         }
-        Move move = moves.get(0);
-        CardType openingCardType = CommonUtil.getCardType(move.getCard());
-        Move bestMove = moves.stream()
-                .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(openingCardType))
+        //Move move = movesToCompare.get(0);
+        CardType cardTypeRequired = CommonUtil.getCardType(bestMoveTillNow.getCard());
+        Move bestMove = movesToCompare.stream()
+                .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(cardTypeRequired))
                 .max(Move::compare)
                 .get();
+        this.cardSetService.updateCardSet(gameCode, latestMove.getId(), bestMove.getId());
         return bestMove.getPlayerCode();
     }
 
