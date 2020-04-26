@@ -322,7 +322,7 @@ public class GamerServiceImpl implements GamerService {
             game.setCurrentPlayer(null);
             //calculate winner
             List<Move> moves = this.moveService.getByIds(cardSet.getAllMoveIds());
-            String winnerPlayerCode = this.getWinner(moves, game.getTrumpCard());
+            String winnerPlayerCode = this.getWinner(moves, game.getTrumpCard(), game.getIsTrumpOpen());
             Player winnerPlayer = this.playerService.getByCode(winnerPlayerCode);
 
             new Thread(() -> {
@@ -345,8 +345,8 @@ public class GamerServiceImpl implements GamerService {
 
     //moves in order
     //best player code
-    private String getWinner(List<Move> moves, Short trumpCard) {
-        if (null != trumpCard) {
+    private String getWinner(List<Move> moves, Short trumpCard, Boolean isTrumpOpen) {
+        if (null != trumpCard && Boolean.TRUE.equals(isTrumpOpen)) {
             CardType trumpCardType = CardType.getFromIndex(trumpCard);
             boolean bestMoveInTrumpPresent = moves.stream()
                     .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(trumpCardType))
