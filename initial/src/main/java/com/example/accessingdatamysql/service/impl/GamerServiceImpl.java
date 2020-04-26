@@ -3,6 +3,7 @@ package com.example.accessingdatamysql.service.impl;
 import com.example.accessingdatamysql.dto.GameStateDTO;
 import com.example.accessingdatamysql.dto.PlayerGamePanelDTO;
 import com.example.accessingdatamysql.enums.CardType;
+import com.example.accessingdatamysql.enums.GameType;
 import com.example.accessingdatamysql.model.CardSet;
 import com.example.accessingdatamysql.model.Game;
 import com.example.accessingdatamysql.model.Move;
@@ -16,10 +17,12 @@ import com.example.accessingdatamysql.service.GamerService;
 import com.example.accessingdatamysql.service.MoveService;
 import com.example.accessingdatamysql.service.PlayerService;
 import com.example.accessingdatamysql.util.CommonUtil;
+import com.pusher.rest.Pusher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import javax.annotation.PostConstruct;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -27,12 +30,24 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class GamerServiceImpl implements GamerService {
+
+    public static Pusher pusher;
+
+    @PostConstruct
+    public void init() {
+        Pusher pusher = new Pusher("989784", "ea0535911cc427f0e599", "c7245a77988d004032a6");
+        pusher.setCluster("mt1");
+        pusher.setEncrypted(true);
+        this.pusher = pusher;
+    }
+
 
     @Autowired
     private GameRepository gameRepository;
@@ -67,6 +82,7 @@ public class GamerServiceImpl implements GamerService {
                 .currentPlayer((short)1)
                 .numberOfPlayers((short)numberOfPlayers)
                 .numberOfCards((short)numberOfCards)
+                .gameType(GameType.FIVE_ZERO_EIGHT.name())
                 .build()
         );
 
@@ -116,6 +132,9 @@ public class GamerServiceImpl implements GamerService {
         game.setTrumpSetByPlayerCode(player.getCode());
         game.setCurrentPlayer(player.getNumericCode());
         this.gameRepository.save(game);
+        pusher.trigger(gameCode, "set-trump",
+                Collections.singletonMap("message", "Trump set by player " + player.getNumericCode())
+        );
     }
 
     @Override
@@ -132,6 +151,10 @@ public class GamerServiceImpl implements GamerService {
         }
         game.setIsTrumpOpen(true);
         this.gameRepository.save(game);
+        Player player = this.playerService.getByCode(playerCode);
+        pusher.trigger(gameCode, "open-trump",
+                Collections.singletonMap("message", "Trump opened by player " + player.getNumericCode())
+        );
     }
 
     private Set<Short> getAlreadyDistributedCards(String gameCode) {
@@ -146,11 +169,36 @@ public class GamerServiceImpl implements GamerService {
         return new HashSet<>(alreadyDistributedCards);
     }
 
-    private List<Short> getUndistributedCards(Set<Short> alreadyDistributedCards) {
+    private List<Short> getCardsAfterRemovingNSmallCards(short smallCardsNumber) {
+        //start from 1 --> which is duggi
+        Set<Short> allCards = new HashSet<>();
+        for (short i =0; i <52; i++) {
+            allCards.add(i);
+        }
+
+        short initialStartIndex = 1;
+        short startIndex = initialStartIndex;
+        while (smallCardsNumber != 0) {
+            allCards.remove(startIndex);
+            startIndex = (short) (startIndex + 13);
+            if (startIndex > 51) {
+                initialStartIndex = (short) (initialStartIndex + 1);
+                startIndex = initialStartIndex;
+            }
+            smallCardsNumber--;
+        }
+        return new ArrayList<>(allCards);
+    }
+
+    private List<Short> getUndistributedCards(Set<Short> alreadyDistributedCards,
+                                              Short totalCards) {
+        short smallCardsNumber = (short) (52 - totalCards);
+        Set<Short> allValidCardSet = getCardsAfterRemovingNSmallCards(smallCardsNumber)
+                .stream().collect(Collectors.toSet());
         List<Short> undistributedCards = new ArrayList<>();
-        for (short card = 0; card < 52; card++) {
-            if (!alreadyDistributedCards.contains(card)) {
-                undistributedCards.add(card);
+        for (Short validCard: allValidCardSet) {
+            if (!alreadyDistributedCards.contains(validCard)) {
+                undistributedCards.add(validCard);
             }
         }
         return undistributedCards;
@@ -163,9 +211,13 @@ public class GamerServiceImpl implements GamerService {
     @Override
     public void distributeCards(Integer numberOfCardsPerPlayer, String gameCode) {
         short leaderPlayer = (short) 1;
+        Game game = this.gameRepository.findByCode(gameCode);
+        if (null == gameCode) {
+            throw new RuntimeException("Invalid game code");
+        }
         //only if there is no move
         Set<Short> alreadyDistributedCards = getAlreadyDistributedCards(gameCode);
-        List<Short> undistributedCards = getUndistributedCards(alreadyDistributedCards);
+        List<Short> undistributedCards = getUndistributedCards(alreadyDistributedCards, game.getNumberOfCards());
 
         if (undistributedCards.isEmpty()) {
             throw new RuntimeException("All cards already distributed");
@@ -205,12 +257,15 @@ public class GamerServiceImpl implements GamerService {
             counter++;
         }
         if (totalCardsToBeDistributed == totalUndistributedCards) {
-            Game game = this.gameRepository.findByCode(gameCode);
             game.setCanGameBeStarted(true);
             this.gameRepository.save(game);
         }
         this.playerService.updatePlayers(players);
+        pusher.trigger(gameCode, "distribute-cards",
+                Collections.singletonMap("message", numberOfCardsPerPlayer + " Cards per player distributed ")
+        );
     }
+
 
     /**
      * Move validation should be there or make a method to undo move on approval of admin
@@ -223,6 +278,9 @@ public class GamerServiceImpl implements GamerService {
         Game game = this.gameRepository.findByCode(gameCode);
         if (null == game) {
             throw new RuntimeException("Invalid game code");
+        }
+        if (!Boolean.TRUE.equals(game.getCanGameBeStarted())) {
+            throw new RuntimeException(("Game has not started yet. Please distribute all cards"));
         }
         Player player = this.playerService.getByCode(playerCode);
         if (null == player) {
@@ -262,10 +320,51 @@ public class GamerServiceImpl implements GamerService {
 
         if (isMoveEndMove) {
             game.setCurrentPlayer(null);
+            //calculate winner
+            List<Move> moves = this.moveService.getByIds(cardSet.getAllMoveIds());
+            String winnerPlayerCode = this.getWinner(moves, game.getTrumpCard());
+            Player winnerPlayer = this.playerService.getByCode(winnerPlayerCode);
+
+            new Thread(() -> {
+                System.out.println("Calculating winner in new thread");
+                try {
+                    Thread.sleep(5000);
+                } catch (Exception ex) {
+                    //System.out.println;
+                }
+                this.chooseWinner(gameCode, winnerPlayer.getNumericCode());
+            }).start();
         } else {
             game.setCurrentPlayer(game.getNextPlayerToMove());
         }
         this.gameRepository.save(game);
+        System.out.println("move done");
+        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", "hello world"));
+        System.out.println("push done");
+    }
+
+    //moves in order
+    //best player code
+    private String getWinner(List<Move> moves, Short trumpCard) {
+        if (null != trumpCard) {
+            CardType trumpCardType = CardType.getFromIndex(trumpCard);
+            boolean bestMoveInTrumpPresent = moves.stream()
+                    .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(trumpCardType))
+                    .max(Move::compare)
+                    .isPresent();
+            if (bestMoveInTrumpPresent) {
+                return moves.stream()
+                        .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(trumpCardType))
+                        .max(Move::compare).get().getPlayerCode();
+            }
+        }
+        Move move = moves.get(0);
+        CardType openingCardType = CommonUtil.getCardType(move.getCard());
+        Move bestMove = moves.stream()
+                .filter(moveHere -> CommonUtil.getCardType(moveHere.getCard()).equals(openingCardType))
+                .max(Move::compare)
+                .get();
+        return bestMove.getPlayerCode();
     }
 
     // Only admin can choose winner for a set
@@ -315,6 +414,7 @@ public class GamerServiceImpl implements GamerService {
 
         game.setCurrentPlayer(winnerPlayerNumericCode);
         this.gameRepository.save(game);
+        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", "hello world"));
     }
 
     private static boolean isMoveEndMoveOfSet(int totalPlayers, CardSet cardSet) {
@@ -324,7 +424,8 @@ public class GamerServiceImpl implements GamerService {
         return false;
     }
 
-    private List<PlayerInfoDTO> getFromCardSetListAndPlayersList(List<CardSet> cardSets, List<Player> players) {
+    private List<PlayerInfoDTO> getFromCardSetListAndPlayersList(List<CardSet> cardSets, List<Player> players,
+                                                                 Map<Short, Integer> playerNumericCodeToPointsMap) {
        Map<String, Long> playerCodeToSetsWonCount = cardSets.stream()
                .filter(cardSet -> null != cardSet.getWinnerPlayerCode())
                .collect(Collectors.groupingBy(CardSet::getWinnerPlayerCode, Collectors.counting()));
@@ -336,9 +437,35 @@ public class GamerServiceImpl implements GamerService {
            playerInfoDTO.setSetsWon(playerCodeToSetsWonCount.containsKey(player.getCode())
                    ? playerCodeToSetsWonCount.get(player.getCode()).intValue() : 0);
            playerInfoDTO.setCardsLeft((short) player.getAllCards().size());
+           playerInfoDTO.setPoints(playerNumericCodeToPointsMap.get(player.getNumericCode()));
            playerInfoDTOS.add(playerInfoDTO);
        }
        return playerInfoDTOS;
+    }
+
+    private Map<String, Integer> getPlayerCodeToPointsMap(List<CardSet> cardSets, String gameCode) {
+        //to show stat
+        Map<String, Integer> playerCodeToPointMap = new HashMap<>();
+        Map<Long, Move> moveIdToMoveMap = this.moveService.getByGameCode(gameCode).stream()
+                .collect(Collectors.toMap(Move::getId, Function.identity()));
+        cardSets.forEach(cardSet -> {
+            if (null != cardSet.getWinnerPlayerCode()) {
+                cardSet.getAllMoveIds().forEach(
+                        moveId -> {
+                            Move move = moveIdToMoveMap.get(moveId);
+                            Short card = move.getCard();
+                            Integer point = GameType.getPointForFIVE_ZERO_EIGHT(card);
+                            if (playerCodeToPointMap.containsKey(cardSet.getWinnerPlayerCode())) {
+                                playerCodeToPointMap.put(cardSet.getWinnerPlayerCode(),
+                                        playerCodeToPointMap.get(cardSet.getWinnerPlayerCode()) + point);
+                            } else {
+                                playerCodeToPointMap.put(cardSet.getWinnerPlayerCode(), point);
+                            }
+                        }
+                );
+            }
+        });
+        return playerCodeToPointMap;
     }
 
     @Override
@@ -375,7 +502,16 @@ public class GamerServiceImpl implements GamerService {
 
         List<CardSet> cardSets = this.cardSetService.getByGameCode(gameCode);
 
-        gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players));
+        Map<Short, Integer> playerNumericCodeToPointsMap = new HashMap<>();
+
+        if (cardSets.size() == (game.getNumberOfCards()/ game.getNumberOfPlayers())) {
+            Map<String, Integer> playerCodeToPointsMap = this.getPlayerCodeToPointsMap(cardSets, gameCode);
+            for (String playerCode: playerCodeToPointsMap.keySet()) {
+                playerNumericCodeToPointsMap.put(playerCodeToNumericCode.get(playerCode),
+                        playerCodeToPointsMap.get(playerCode));
+            }
+        }
+        gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players, playerNumericCodeToPointsMap));
 
 
 
@@ -446,7 +582,7 @@ public class GamerServiceImpl implements GamerService {
         }
         playerGamePanelDTO.setPlayerNumericCode(player.getNumericCode());
         List<CardPOJO> cardPOJOS = player.getAllCards().stream()
-                .map(card -> new CardPOJO(card, CommonUtil.getCardType(card),
+                .map(card -> new CardPOJO(card, CommonUtil.getCardIndex(card), CommonUtil.getCardType(card),
                         CommonUtil.getDisplayStringForCard(card)))
                 .collect(Collectors.toList());
         Map<CardType, List<CardPOJO>> cardTypeListMap = cardPOJOS.stream()

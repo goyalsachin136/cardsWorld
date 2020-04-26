@@ -21,6 +21,7 @@ dependencies {
 	}
 	compileOnly 'org.projectlombok:lombok:1.18.12'
 	annotationProcessor 'org.projectlombok:lombok:1.18.12'
+	compile 'com.pusher:pusher-http-java:1.0.0'
 }
 
 test {

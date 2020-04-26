@@ -52,11 +52,13 @@ public class MainController {
 
     @PostMapping(path="/enterGame") // Map ONLY POST Requests
     public @ResponseBody ResponseDTO enterGame (@RequestParam int numericId, @RequestParam String gameCode) {
+        System.out.println("enterGame");
         return new ResponseDTO(null, playerService.enterGame((short)numericId, gameCode));
     }
 
     @PostMapping(path="/distributeCards") // Map ONLY POST Requests
     public @ResponseBody ResponseDTO distributeCards (@RequestParam(required = false) Integer numberOfCardsPerPlayer, @RequestParam String gameCode) {
+        System.out.println("distributeCards");
         this.gamerService.distributeCards(numberOfCardsPerPlayer, gameCode);
         return new ResponseDTO(null, numberOfCardsPerPlayer + " cards distributed per person");
     }
@@ -68,18 +70,21 @@ public class MainController {
 
     @PostMapping(path="/openTrump") // Map ONLY POST Requests
     public @ResponseBody ResponseDTO openTrump (@RequestParam String gameCode, @RequestParam String playerCode) {
+        System.out.println("openTrump");
         gamerService.openTrump(gameCode, playerCode);
         return new ResponseDTO(null, "Trump opened");
     }
 
     @PostMapping(path="/setTrump") // Map ONLY POST Requests
     public @ResponseBody ResponseDTO setTrump (@RequestParam short trump, @RequestParam String gameCode, @RequestParam String playerCode) {
+        System.out.println("setTrump");
         gamerService.setTrump(trump, gameCode, playerCode);
         return new ResponseDTO(null, "Trump set");
     }
 
     @PostMapping(path="/moveCard") // Map ONLY POST Requests
     public @ResponseBody ResponseDTO moveCard (@RequestParam short card, @RequestParam String gameCode, @RequestParam String playerCode) {
+        System.out.println("moveCard");
         gamerService.moveCard(card, playerCode, gameCode);
         return new ResponseDTO(null, "Card moved");
     }
@@ -87,17 +92,20 @@ public class MainController {
     @PostMapping(path="/chooseWinner") // Map ONLY POST Requests
     public @ResponseBody void chooseWinner (@RequestParam short winnerPlayerNumericCode,
                                             @RequestParam String gameCode, @RequestParam String adminPlayerCode) {
+        System.out.println("chooseWinner");
         gamerService.chooseWinner(adminPlayerCode, winnerPlayerNumericCode, gameCode);
     }
 
     @GetMapping(path="/gameState")
     public @ResponseBody GameStateDTO getGameState(@RequestParam String gameCode) {
+        System.out.println("gameState");
         return gamerService.getGameState(gameCode);
     }
 
 
     @GetMapping(path="/playerState")
     public @ResponseBody PlayerGamePanelDTO getPlayerState(@RequestParam String playerCode) {
+        System.out.println("playerState");
         return gamerService.getPlayerStat(playerCode);
     }
 }

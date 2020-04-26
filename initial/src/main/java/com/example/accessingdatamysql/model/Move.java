@@ -1,5 +1,6 @@
 package com.example.accessingdatamysql.model;
 
+import com.example.accessingdatamysql.util.CommonUtil;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -10,6 +11,7 @@ import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
+import java.util.Comparator;
 
 @Entity // This tells Hibernate to make a table out of this class
 @Getter
@@ -29,4 +31,15 @@ public class Move {
     private String playerCode;
 
     private Boolean isActive;
+
+    public static int compare(Move o1, Move o2) {
+        short greaterCard = CommonUtil.getGreaterCard(o1.card, o2.card);
+        if (o1.getCard().equals(greaterCard) && o2.getCard().equals(greaterCard)) {
+            return 0;
+        }
+        if (o1.getCard().equals(greaterCard)) {
+            return 1;
+        }
+        return -1;
+    }
 }

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Service
@@ -35,6 +36,11 @@ public class PlayerServiceImpl implements PlayerService {
             throw new RuntimeException("Player already entered for this id " + numericCode);
         } else {
             player.setCode(CommonUtil.getSmallCapRandomString((short)6));
+
+            GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
+                    Collections.singletonMap("message", "Player " + numericCode + " is in the game")
+            );
+
             return playerRepository.save(player).getCode();
         }
     }

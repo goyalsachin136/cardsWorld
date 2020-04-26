@@ -12,6 +12,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CardPOJO {
     private short card;
+    private short cardNumber;
     private CardType cardType;
     private String displayCode;
 }

@@ -13,4 +13,5 @@ public class PlayerInfoDTO {
     private short numericCode;
     private Integer setsWon;
     private short cardsLeft;
+    private Integer points;
 }

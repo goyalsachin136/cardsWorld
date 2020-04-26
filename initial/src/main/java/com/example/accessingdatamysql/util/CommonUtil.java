@@ -19,14 +19,25 @@ public class CommonUtil {
         return generatedString;
     }
 
+    //assuming both are of same type
+    public static short getGreaterCard(short card1, short card2) {
+        short index1 = getCardIndex(card1);
+        short index2 = getCardIndex(card2);
+        if (index1 == 0) {
+            return card1;
+        }
+        if (index2 == 0) {
+            return card2;
+        }
+        return index1 > index2 ? card1 : card2;
+    }
     public static CardType getCardType(short card) {
         short index = (short) (card/13);
         return CardType.getFromIndex(index);
     }
 
-    public static short getCardNumber(short card) {
-        short cardNumber = (short) (card % 13);
-        return cardNumber;
+    public static short getCardIndex(short card) {
+        return  (short) (card % 13);
     }
 
     // card number will be from 0 to 51 inclusive
@@ -36,20 +47,34 @@ public class CommonUtil {
         if (cardType == null) {
             return "";
         }
-        short cardNumber = getCardNumber(card);
-        if (cardNumber == 0) {
+        short cardIndex = getCardIndex(card);
+        if (cardIndex == 0) {
+            return String.format("%s", "A");
+        }
+        if (cardIndex + 1 == 11) {
+            return String.format("%s", "J");
+        }
+        if (cardIndex + 1 == 12) {
+            return String.format("%s", "Q");
+        }
+        if (cardIndex + 1 == 13) {
+            return String.format("%s", "K");
+        }
+        return String.format("%s",cardIndex+1)   ;
+        /*short cardIndex = getCardIndex(card);
+        if (cardIndex == 0) {
             return String.format("%s-%s", "A", cardType.name());
         }
-        if (cardNumber + 1 == 11) {
+        if (cardIndex + 1 == 11) {
             return String.format("%s-%s", "J", cardType.name());
         }
-        if (cardNumber + 1 == 12) {
+        if (cardIndex + 1 == 12) {
             return String.format("%s-%s", "Q", cardType.name());
         }
-        if (cardNumber + 1 == 13) {
+        if (cardIndex + 1 == 13) {
             return String.format("%s-%s", "K", cardType.name());
         }
-        return String.format("%s-%s", cardNumber, cardType.name());
+        return String.format("%s-%s", cardIndex, cardType.name());*/
     }
 
 }

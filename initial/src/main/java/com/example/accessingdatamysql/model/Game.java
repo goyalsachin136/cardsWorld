@@ -1,5 +1,6 @@
 package com.example.accessingdatamysql.model;
 
+import com.example.accessingdatamysql.enums.GameType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -38,6 +39,8 @@ public class Game {
     private Short numberOfCards; // 0 to 51
 
     private Boolean canGameBeStarted;
+
+    private String gameType;
 
     public short getNextPlayerToMove() {
         if (null == currentPlayer) {
