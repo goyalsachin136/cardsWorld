@@ -443,6 +443,9 @@ public class GamerServiceImpl implements GamerService {
     }
 
     private static boolean isMoveEndMoveOfSet(int totalPlayers, CardSet cardSet) {
+        if (null == cardSet || CollectionUtils.isEmpty(cardSet.getAllMoveIds())) {
+            return false;
+        }
         if (cardSet.getAllMoveIds().size() == totalPlayers) {
             return true;
         }
@@ -463,6 +466,7 @@ public class GamerServiceImpl implements GamerService {
                    ? playerCodeToSetsWonCount.get(player.getCode()).intValue() : 0);
            playerInfoDTO.setCardsLeft((short) player.getAllCards().size());
            playerInfoDTO.setPoints(playerNumericCodeToPointsMap.get(player.getNumericCode()));
+           playerInfoDTO.setNickName(player.getNickName());
            playerInfoDTOS.add(playerInfoDTO);
        }
        return playerInfoDTOS;
@@ -616,7 +620,7 @@ public class GamerServiceImpl implements GamerService {
         cardTypeListMap.values().forEach(list -> list.sort(Comparator.comparing(CardPOJO::getCard)));
 
         playerGamePanelDTO.setCardTypeToCardDisplayStringMap(cardTypeListMap);
-
+        playerGamePanelDTO.setNickName(player.getNickName());
         Game game = this.gameRepository.findByCode(player.getGameCode());
         if (playerCode.equals(game.getTrumpSetByPlayerCode())) {
             playerGamePanelDTO.setTrumpCard(CardType.getFromIndex(game.getTrumpCard()).name());

@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.servlet.http.HttpServletRequest;
+
 @Controller // This means that this class is a Controller
 @RequestMapping(path="/demo") // This means URL's start with /demo (after Application path)
 public class MainController {
@@ -51,9 +53,10 @@ public class MainController {
     }
 
     @PostMapping(path="/enterGame") // Map ONLY POST Requests
-    public @ResponseBody ResponseDTO enterGame (@RequestParam int numericId, @RequestParam String gameCode) {
+    public @ResponseBody ResponseDTO enterGame (@RequestParam int numericId, @RequestParam String gameCode,
+                                                @RequestParam(required = false) String nickName) {
         System.out.println("enterGame");
-        return new ResponseDTO(null, playerService.enterGame((short)numericId, gameCode));
+        return new ResponseDTO(null, playerService.enterGame((short)numericId, gameCode, nickName));
     }
 
     @PostMapping(path="/distributeCards") // Map ONLY POST Requests
@@ -104,8 +107,9 @@ public class MainController {
 
 
     @GetMapping(path="/playerState")
-    public @ResponseBody PlayerGamePanelDTO getPlayerState(@RequestParam String playerCode) {
-        System.out.println("playerState");
+    public @ResponseBody PlayerGamePanelDTO getPlayerState(HttpServletRequest request, @RequestParam String playerCode) {
+        System.out.println("ip is " + request.getRemoteAddr());
+        System.out.println("playerState " + playerCode);
         return gamerService.getPlayerStat(playerCode);
     }
 }

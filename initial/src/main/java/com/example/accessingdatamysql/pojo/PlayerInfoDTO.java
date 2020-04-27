@@ -14,4 +14,5 @@ public class PlayerInfoDTO {
     private Integer setsWon;
     private short cardsLeft;
     private Integer points;
+    private String nickName;
 }

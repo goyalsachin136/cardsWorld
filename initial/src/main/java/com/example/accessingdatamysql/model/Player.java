@@ -37,6 +37,8 @@ public class Player {
 
     private String cardsLeft; // comma separated numbers
 
+    private String nickName;
+
     //TODO leave it for now as there is winnerPlayerCode in card set
     //private String setWonList; // comma separated sets ids ,
 

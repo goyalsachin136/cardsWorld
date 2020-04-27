@@ -7,6 +7,8 @@ import com.example.accessingdatamysql.util.CommonUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StreamUtils;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,7 +30,7 @@ public class PlayerServiceImpl implements PlayerService {
     }
 
     @Override
-    public String enterGame(short numericCode, String gameCode) {
+    public String enterGame(short numericCode, String gameCode, String nickName) {
         Player player = this.playerRepository.findByGameCodeAndNumericCode(gameCode, numericCode);
         if (null == player) {
             throw new RuntimeException("Invalid game code " + gameCode + " or invalid numericCode " + numericCode);
@@ -40,7 +42,10 @@ public class PlayerServiceImpl implements PlayerService {
             GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
                     Collections.singletonMap("message", "Player " + numericCode + " is in the game")
             );
-
+            if (!StringUtils.isEmpty(nickName) && nickName.length() > 10) {
+                throw new RuntimeException("Choose smaller nick name");
+            }
+            player.setNickName(nickName);
             return playerRepository.save(player).getCode();
         }
     }
