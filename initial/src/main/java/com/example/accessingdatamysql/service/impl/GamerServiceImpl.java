@@ -134,7 +134,7 @@ public class GamerServiceImpl implements GamerService {
         game.setCurrentPlayer(player.getNumericCode());
         this.gameRepository.save(game);
         pusher.trigger(gameCode, "set-trump",
-                Collections.singletonMap("message", "Trump set by player " + player.getNumericCode())
+                Collections.singletonMap("message", "Trump set by player " + player.getNickName())
         );
     }
 
@@ -154,7 +154,7 @@ public class GamerServiceImpl implements GamerService {
         this.gameRepository.save(game);
         Player player = this.playerService.getByCode(playerCode);
         pusher.trigger(gameCode, "open-trump",
-                Collections.singletonMap("message", "Trump opened by player " + player.getNumericCode())
+                Collections.singletonMap("message", "Trump opened by player " + player.getNickName())
         );
     }
 
@@ -213,8 +213,8 @@ public class GamerServiceImpl implements GamerService {
     public void distributeCards(Integer numberOfCardsPerPlayer, String gameCode) {
         short leaderPlayer = (short) 1;
         Game game = this.gameRepository.findByCode(gameCode);
-        if (null == gameCode) {
-            throw new RuntimeException("Invalid game code");
+        if (null == game) {
+            throw new RuntimeException("Enter game code or generate game code, generate player code. After that distribute cards");
         }
         //only if there is no move
         Set<Short> alreadyDistributedCards = getAlreadyDistributedCards(gameCode);
@@ -342,7 +342,7 @@ public class GamerServiceImpl implements GamerService {
         }
         this.gameRepository.save(game);
         System.out.println("move done");
-        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", "hello world"));
+        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", player.getNickName() + " has moved" ));
         System.out.println("push done");
     }
 
@@ -439,7 +439,7 @@ public class GamerServiceImpl implements GamerService {
 
         game.setCurrentPlayer(winnerPlayerNumericCode);
         this.gameRepository.save(game);
-        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", "hello world"));
+        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", winnerPlayer.getNickName() + " has won this set" ));
     }
 
     private static boolean isMoveEndMoveOfSet(int totalPlayers, CardSet cardSet) {
@@ -517,13 +517,23 @@ public class GamerServiceImpl implements GamerService {
                 .collect(Collectors.toMap(Player::getCode, Player::getNumericCode));*/
         Map<String, Short> playerCodeToNumericCode = new HashMap<>();
 
+        Map<Short, String> numericCodeToNickNameMap = new HashMap<>();
+
         for (Player player: players) {
             if (null != player.getCode())
                 playerCodeToNumericCode.put(player.getCode(), player.getNumericCode());
+            if (null!= player.getNumericCode() && null != player.getNickName()) {
+                numericCodeToNickNameMap.put(player.getNumericCode(), player.getNickName());
+            }
         }
 
         if (null != game.getTrumpSetByPlayerCode()) {
-            gameStateDTO.setTrumpDeclaredBy(playerCodeToNumericCode.get(game.getTrumpSetByPlayerCode()));
+            Short numericCode = playerCodeToNumericCode.get(game.getTrumpSetByPlayerCode());
+            if (null != numericCode && numericCodeToNickNameMap.containsKey(numericCode)) {
+                gameStateDTO.setTrumpDeclaredBy(numericCodeToNickNameMap.get(numericCode));
+            } else {
+                gameStateDTO.setTrumpDeclaredBy(String.valueOf(playerCodeToNumericCode.get(game.getTrumpSetByPlayerCode())));
+            }
         }
         gameStateDTO.setCanGameBeStarted(game.getCanGameBeStarted());
         //gameStateToDisplay
@@ -555,7 +565,7 @@ public class GamerServiceImpl implements GamerService {
         } else if (null != activeCardSet && !activeCardSet.getAllMoveIds().isEmpty()) {
             // card set in progress
             List<Move> moves = this.moveService.getByIds(activeCardSet.getAllMoveIds());
-            gameStateDTO.setCardSetDTOS(this.getFromMoves(moves, playerCodeToNumericCode));
+            gameStateDTO.setCardSetDTOS(this.getFromMoves(moves, playerCodeToNumericCode, numericCodeToNickNameMap));
         }
 
         //List<CardSet> cardSets = this.cardSetService.getByGameCode(gameCode);
@@ -578,12 +588,22 @@ public class GamerServiceImpl implements GamerService {
             }
 
             if (null != game.getCurrentPlayer()) {
+                if (numericCodeToNickNameMap.containsKey(game.getCurrentPlayer())) {
+                    gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                            .concat(numericCodeToNickNameMap.get(game.getCurrentPlayer()) + " it's your move\n"));
+                } else {
+                    gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                            .concat(" Player " + game.getCurrentPlayer() + " it's your move\n"));
+                }
+            }
+        } else if (null != game.getCurrentPlayer()) {
+            if (numericCodeToNickNameMap.containsKey(game.getCurrentPlayer())) {
+                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
+                        .concat(numericCodeToNickNameMap.get(game.getCurrentPlayer()) + " it's your move\n"));
+            } else {
                 gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
                         .concat(" Player " + game.getCurrentPlayer() + " it's your move\n"));
             }
-        } else if (null != game.getCurrentPlayer()) {
-            gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
-                    .concat(" Player " + game.getCurrentPlayer() + " it's your move\n"));
         } else if (null == game.getCurrentPlayer()) {
             gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
                     .concat(" Admin  choose winner for current set \n"));
@@ -591,12 +611,15 @@ public class GamerServiceImpl implements GamerService {
         return gameStateDTO;
     }
 
-    private List<CardSetDTO> getFromMoves(List<Move> moves, Map<String, Short> playerCodeToNumericCode) {
+    private List<CardSetDTO> getFromMoves(List<Move> moves, Map<String, Short> playerCodeToNumericCode,
+                                          Map<Short, String> numericCodeToNickNameMap) {
         List<CardSetDTO> cardSetDTOS = new ArrayList<>();
         for (Move move: moves) {
             cardSetDTOS.add(new CardSetDTO(CommonUtil.getDisplayStringForCard(move.getCard()),
-                    playerCodeToNumericCode.get(move.getPlayerCode()), CommonUtil.getCardType(move.getCard()))
-            );
+                    playerCodeToNumericCode.get(move.getPlayerCode()), CommonUtil.getCardType(move.getCard()),
+                    playerCodeToNumericCode.containsKey(move.getPlayerCode()) ?
+                            numericCodeToNickNameMap.get(playerCodeToNumericCode.get(move.getPlayerCode())) : null)
+                    );
         }
         return cardSetDTOS;
     }

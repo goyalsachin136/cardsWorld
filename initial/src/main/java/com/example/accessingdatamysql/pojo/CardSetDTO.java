@@ -14,4 +14,5 @@ public class CardSetDTO {
     private String displayCard;
     private short playerNumericCode;
     private CardType cardType;
+    private String playerNickName;
 }

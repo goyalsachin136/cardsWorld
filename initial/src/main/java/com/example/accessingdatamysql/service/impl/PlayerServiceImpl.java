@@ -37,16 +37,19 @@ public class PlayerServiceImpl implements PlayerService {
         } else if (null != player.getCode()) {
             throw new RuntimeException("Player already entered for this id " + numericCode);
         } else {
+            if (StringUtils.isEmpty(nickName)) {
+                throw new RuntimeException("Please choose nick name");
+            }
             player.setCode(CommonUtil.getSmallCapRandomString((short)6));
-
-            GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
-                    Collections.singletonMap("message", "Player " + numericCode + " is in the game")
-            );
             if (!StringUtils.isEmpty(nickName) && nickName.length() > 10) {
                 throw new RuntimeException("Choose smaller nick name");
             }
             player.setNickName(nickName);
-            return playerRepository.save(player).getCode();
+            String playerCode = playerRepository.save(player).getCode();
+            GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
+                    Collections.singletonMap("message", nickName + " has joined game")
+            );
+            return playerCode;
         }
     }
 
