@@ -12,7 +12,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class CardSetDTO {
     private String displayCard;
-    private short playerNumericCode;
+    private Short playerNumericCode;
     private CardType cardType;
     private String playerNickName;
 }

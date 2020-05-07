@@ -100,9 +100,10 @@ public class MainController {
     }
 
     @GetMapping(path="/gameState")
-    public @ResponseBody GameStateDTO getGameState(@RequestParam String gameCode) {
+    public @ResponseBody GameStateDTO getGameState(@RequestParam String gameCode,
+                                                   @RequestParam String playerCode) {
         System.out.println("gameState");
-        return gamerService.getGameState(gameCode);
+        return gamerService.getGameState(gameCode, playerCode);
     }
 
 

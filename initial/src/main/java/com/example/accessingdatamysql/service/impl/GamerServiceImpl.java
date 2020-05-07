@@ -112,8 +112,15 @@ public class GamerServiceImpl implements GamerService {
         this.gameRepository.save(game);
     }
 
+    /**
+     * Trump from ui will be actual number + 1
+     * @param trump
+     * @param gameCode
+     * @param playerCode
+     */
     @Override
     public void setTrump(short trump, String gameCode, String playerCode) {
+        trump = (short) (trump - 1);
         Game game = this.gameRepository.findByCode(gameCode);
         if (null == game) {
             throw new RuntimeException("Invalid game code");
@@ -143,6 +150,9 @@ public class GamerServiceImpl implements GamerService {
         Game game = this.gameRepository.findByCode(gameCode);
         if (null == game) {
             throw new RuntimeException("Invalid game code");
+        }
+        if (null == game.getTrumpCard()) {
+            throw new RuntimeException("Trump not yet set");
         }
         if (!playerCode.equalsIgnoreCase(game.getTrumpSetByPlayerCode())) {
             throw new RuntimeException("Not privileged to open trump card");
@@ -291,7 +301,10 @@ public class GamerServiceImpl implements GamerService {
             throw new RuntimeException("First decide winner of current game set");
         }
         if (!player.getNumericCode().equals(game.getCurrentPlayer())) {
-            throw new RuntimeException("Invalid move. Currently player " + game.getCurrentPlayer() + " has to move");
+            Player playerToMove = this.playerService.getByGameCodeAndNumericCode(game.getCode(), game.getCurrentPlayer());
+            throw new RuntimeException("Invalid move. Currently "
+                    + (null != playerToMove ? playerToMove.getNickName(): "player " + game.getCurrentPlayer()) + " has to move"
+            );
         }
 
         CardSet cardSet = this.cardSetService.getActiveCardSet(gameCode);
@@ -342,7 +355,13 @@ public class GamerServiceImpl implements GamerService {
         }
         this.gameRepository.save(game);
         System.out.println("move done");
-        pusher.trigger(gameCode, "move-event", Collections.singletonMap("message", player.getNickName() + " has moved" ));
+        Map<String, String> pusherMessage = new HashMap<>();
+        pusherMessage.put("message", player.getNickName() + " has moved" );
+        Player nextPlayer = null != game.getCurrentPlayer() ?
+                this.playerService.getByGameCodeAndNumericCode(game.getCode(), game.getCurrentPlayer()) :
+                this.playerService.getByCode(winnerPlayerCodeTillNowForThisSet);
+        pusherMessage.put("playerToMove", nextPlayer.getNickName());
+        pusher.trigger(gameCode, "move-event", pusherMessage);
         System.out.println("push done");
     }
 
@@ -453,22 +472,44 @@ public class GamerServiceImpl implements GamerService {
     }
 
     private List<PlayerInfoDTO> getFromCardSetListAndPlayersList(List<CardSet> cardSets, List<Player> players,
-                                                                 Map<Short, Integer> playerNumericCodeToPointsMap) {
+                                                                 Map<Short, Integer> playerNumericCodeToPointsMap,
+                                                                 Player requestedPlayer) {
        Map<String, Long> playerCodeToSetsWonCount = cardSets.stream()
                .filter(cardSet -> null != cardSet.getWinnerPlayerCode())
                .collect(Collectors.groupingBy(CardSet::getWinnerPlayerCode, Collectors.counting()));
 
         List<PlayerInfoDTO> playerInfoDTOS = new ArrayList<>();
+        boolean isNumericCodeResetDone = false;
+        short counter = 3;
        for (Player player: players) {
            PlayerInfoDTO playerInfoDTO = new PlayerInfoDTO();
-           playerInfoDTO.setNumericCode(player.getNumericCode());
+           //playerInfoDTO.setNumericCode(player.getNumericCode());
+           if (isNumericCodeResetDone) {
+               if (counter == 5) {
+                   counter = (short) 1;
+               }
+               playerInfoDTO.setNumericCode(counter++);
+           }
            playerInfoDTO.setSetsWon(playerCodeToSetsWonCount.containsKey(player.getCode())
                    ? playerCodeToSetsWonCount.get(player.getCode()).intValue() : 0);
            playerInfoDTO.setCardsLeft((short) player.getAllCards().size());
            playerInfoDTO.setPoints(playerNumericCodeToPointsMap.get(player.getNumericCode()));
            playerInfoDTO.setNickName(player.getNickName());
            playerInfoDTOS.add(playerInfoDTO);
+           if (requestedPlayer.getCode().equals(player.getCode())) {
+               playerInfoDTO.setNumericCode(counter++);
+               isNumericCodeResetDone = true;
+           }
        }
+       for (PlayerInfoDTO playerInfoDTO: playerInfoDTOS) {
+           if (null == playerInfoDTO.getNumericCode()) {
+               if (counter == 5) {
+                   counter = (short) 1;
+               }
+               playerInfoDTO.setNumericCode(counter++);
+           }
+       }
+       Collections.sort(playerInfoDTOS, Comparator.comparing(PlayerInfoDTO::getNumericCode));
        return playerInfoDTOS;
     }
 
@@ -498,7 +539,7 @@ public class GamerServiceImpl implements GamerService {
     }
 
     @Override
-    public GameStateDTO getGameState(String gameCode) {
+    public GameStateDTO getGameState(String gameCode, String playerCode) {
         GameStateDTO gameStateDTO = new GameStateDTO();
 
         Game game = this.gameRepository.findByCode(gameCode);
@@ -506,6 +547,10 @@ public class GamerServiceImpl implements GamerService {
             throw new RuntimeException("Invalid game code " + gameCode);
         }
 
+        Player player = this.playerService.getByCode(playerCode);
+        if (null == player) {
+            throw new RuntimeException("Generate player code");
+        }
         gameStateDTO.setGameCode(gameCode);
         gameStateDTO.setPlayerToMove(game.getCurrentPlayer());
         gameStateDTO.setTrumpCard(Boolean.TRUE.equals(game.getIsTrumpOpen())
@@ -519,11 +564,11 @@ public class GamerServiceImpl implements GamerService {
 
         Map<Short, String> numericCodeToNickNameMap = new HashMap<>();
 
-        for (Player player: players) {
-            if (null != player.getCode())
-                playerCodeToNumericCode.put(player.getCode(), player.getNumericCode());
-            if (null!= player.getNumericCode() && null != player.getNickName()) {
-                numericCodeToNickNameMap.put(player.getNumericCode(), player.getNickName());
+        for (Player playerHere: players) {
+            if (null != playerHere.getCode())
+                playerCodeToNumericCode.put(playerHere.getCode(), playerHere.getNumericCode());
+            if (null!= playerHere.getNumericCode() && null != playerHere.getNickName()) {
+                numericCodeToNickNameMap.put(playerHere.getNumericCode(), playerHere.getNickName());
             }
         }
 
@@ -545,12 +590,13 @@ public class GamerServiceImpl implements GamerService {
 
         if (cardSets.size() == (game.getNumberOfCards()/ game.getNumberOfPlayers())) {
             Map<String, Integer> playerCodeToPointsMap = this.getPlayerCodeToPointsMap(cardSets, gameCode);
-            for (String playerCode: playerCodeToPointsMap.keySet()) {
-                playerNumericCodeToPointsMap.put(playerCodeToNumericCode.get(playerCode),
-                        playerCodeToPointsMap.get(playerCode));
+            for (String playerCodeHere: playerCodeToPointsMap.keySet()) {
+                playerNumericCodeToPointsMap.put(playerCodeToNumericCode.get(playerCodeHere),
+                        playerCodeToPointsMap.get(playerCodeHere));
             }
         }
-        gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players, playerNumericCodeToPointsMap));
+        gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players, playerNumericCodeToPointsMap,
+                player));
 
 
 
@@ -558,7 +604,7 @@ public class GamerServiceImpl implements GamerService {
         CardSet activeCardSet = cardSets.stream().filter(cardSet -> Boolean.TRUE.equals(cardSet.getIsCurrentSet()))
                 .findFirst().orElse(null);
 
-        if (null == activeCardSet) {
+        /*if (null == activeCardSet) {
             // waiting for 1st move of set
             //return gameStateDTO;
             // no active card set in progress
@@ -566,7 +612,11 @@ public class GamerServiceImpl implements GamerService {
             // card set in progress
             List<Move> moves = this.moveService.getByIds(activeCardSet.getAllMoveIds());
             gameStateDTO.setCardSetDTOS(this.getFromMoves(moves, playerCodeToNumericCode, numericCodeToNickNameMap));
-        }
+        }*/
+
+        List<Move> moves = this.moveService.getByIds(null != activeCardSet ? activeCardSet.getAllMoveIds() : Collections.emptyList());
+        gameStateDTO.setCardSetDTOS(this.getFromMoves(moves, players, playerCodeToNumericCode, numericCodeToNickNameMap,
+                player));
 
         //List<CardSet> cardSets = this.cardSetService.getByGameCode(gameCode);
 
@@ -611,16 +661,38 @@ public class GamerServiceImpl implements GamerService {
         return gameStateDTO;
     }
 
-    private List<CardSetDTO> getFromMoves(List<Move> moves, Map<String, Short> playerCodeToNumericCode,
-                                          Map<Short, String> numericCodeToNickNameMap) {
+    private List<CardSetDTO> getFromMoves(List<Move> moves, List<Player> players, Map<String, Short> playerCodeToNumericCode,
+                                          Map<Short, String> numericCodeToNickNameMap, Player player) {
         List<CardSetDTO> cardSetDTOS = new ArrayList<>();
-        for (Move move: moves) {
-            cardSetDTOS.add(new CardSetDTO(CommonUtil.getDisplayStringForCard(move.getCard()),
-                    playerCodeToNumericCode.get(move.getPlayerCode()), CommonUtil.getCardType(move.getCard()),
-                    playerCodeToNumericCode.containsKey(move.getPlayerCode()) ?
-                            numericCodeToNickNameMap.get(playerCodeToNumericCode.get(move.getPlayerCode())) : null)
-                    );
+        players.sort(Comparator.comparing(Player::getNumericCode));
+
+        Map<Short, Move> playerNumericCodeToMoveMap = moves.stream()
+                .collect(Collectors.toMap(move -> playerCodeToNumericCode.get(move.getPlayerCode()), Function.identity()));
+
+        boolean isNumericCodeResetDone = false;
+        short counter = 3;
+
+        for (Player playerHere : players) {
+            if (player.getCode().equals(playerHere.getCode())) {
+                isNumericCodeResetDone = true;
+            }
+            if (isNumericCodeResetDone) {
+                if (counter == 5) {
+                    counter = 1;
+                }
+            }
+            Move move = playerNumericCodeToMoveMap.get(playerHere.getNumericCode());
+            cardSetDTOS.add(new CardSetDTO(null != move ? CommonUtil.getDisplayStringForCard(move.getCard()) : null,
+                    isNumericCodeResetDone ? counter++ : null, null != move ? CommonUtil.getCardType(move.getCard()) : null, playerHere.getNickName()));
         }
+
+        for (CardSetDTO cardSetDTO : cardSetDTOS) {
+            if (counter == 5) {
+                counter = 1;
+            }
+            cardSetDTO.setPlayerNumericCode(counter++);
+        }
+        cardSetDTOS.sort(Comparator.comparing(CardSetDTO::getPlayerNumericCode));
         return cardSetDTOS;
     }
 

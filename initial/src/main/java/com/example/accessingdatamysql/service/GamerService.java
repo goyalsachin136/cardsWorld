@@ -19,7 +19,7 @@ public interface GamerService {
 
     void chooseWinner(String adminPlayerCode, short winnerPlayerNumericCode, String gameCode);
 
-    GameStateDTO getGameState(String gameCode);
+    GameStateDTO getGameState(String gameCode, String playerCode);
 
     PlayerGamePanelDTO getPlayerStat(String playerCode);
 }
