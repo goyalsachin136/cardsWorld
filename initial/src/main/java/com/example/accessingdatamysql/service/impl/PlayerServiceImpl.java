@@ -1,7 +1,9 @@
 package com.example.accessingdatamysql.service.impl;
 
+import com.example.accessingdatamysql.model.Game;
 import com.example.accessingdatamysql.model.Player;
 import com.example.accessingdatamysql.repository.PlayerRepository;
+import com.example.accessingdatamysql.service.GamerService;
 import com.example.accessingdatamysql.service.PlayerService;
 import com.example.accessingdatamysql.util.CommonUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,9 @@ public class PlayerServiceImpl implements PlayerService {
     @Autowired
     private PlayerRepository playerRepository;
 
+    @Autowired
+    private GamerService gamerService;
+
     @Override
     public void createPlayersInGame(String gameCode, short numberOfPlayers) {
         List<Player> playerList = new ArrayList();
@@ -30,32 +35,13 @@ public class PlayerServiceImpl implements PlayerService {
     }
 
     @Override
-    public String enterGame(short numericCode, String gameCode, String nickName) {
-        Player player = this.playerRepository.findByGameCodeAndNumericCode(gameCode, numericCode);
-        if (null == player) {
-            throw new RuntimeException("Invalid game code " + gameCode + " or invalid numericCode " + numericCode);
-        } else if (null != player.getCode()) {
-            throw new RuntimeException("Player already entered for this id " + numericCode);
-        } else {
-            if (StringUtils.isEmpty(nickName)) {
-                throw new RuntimeException("Please choose nick name");
-            }
-            player.setCode(CommonUtil.getSmallCapRandomString((short)6));
-            if (!StringUtils.isEmpty(nickName) && nickName.length() > 10) {
-                throw new RuntimeException("Choose smaller nick name");
-            }
-            player.setNickName(nickName);
-            String playerCode = playerRepository.save(player).getCode();
-            GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
-                    Collections.singletonMap("message", nickName + " has joined game")
-            );
-            return playerCode;
-        }
+    public List<Player> getByGameCode(String gameCode) {
+        return playerRepository.findByGameCode(gameCode);
     }
 
     @Override
-    public List<Player> getByGameCode(String gameCode) {
-        return playerRepository.findByGameCode(gameCode);
+    public Player updatePlayer(Player player) {
+        return playerRepository.save(player);
     }
 
     @Override

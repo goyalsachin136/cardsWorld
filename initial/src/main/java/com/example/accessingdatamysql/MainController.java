@@ -56,7 +56,7 @@ public class MainController {
     public @ResponseBody ResponseDTO enterGame (@RequestParam int numericId, @RequestParam String gameCode,
                                                 @RequestParam(required = false) String nickName) {
         System.out.println("enterGame");
-        return new ResponseDTO(null, playerService.enterGame((short)numericId, gameCode, nickName));
+        return new ResponseDTO(null, gamerService.enterGame((short)numericId, gameCode, nickName));
     }
 
     @PostMapping(path="/distributeCards") // Map ONLY POST Requests

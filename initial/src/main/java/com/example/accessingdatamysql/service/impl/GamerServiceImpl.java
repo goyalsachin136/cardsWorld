@@ -21,6 +21,7 @@ import com.pusher.rest.Pusher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 import javax.smartcardio.Card;
@@ -90,6 +91,39 @@ public class GamerServiceImpl implements GamerService {
         this.playerService.createPlayersInGame(game.getCode(), game.getNumberOfPlayers());
         return game.getCode();
     }
+
+    @Override
+    public String enterGame(short numericCode, String gameCode, String nickName) {
+        Game game = this.gameRepository.findByCode(gameCode);
+        if (null == game) {
+            throw new RuntimeException("Invalid game code " + gameCode);
+        }
+        if (game.getNumberOfPlayers() < numericCode) {
+            throw new RuntimeException("Only " + game.getNumberOfPlayers() + " can play in this game . " +
+                    "Invalid numericCode " + numericCode);
+        }
+        Player player = this.playerService.getByGameCodeAndNumericCode(gameCode, numericCode);
+        if (null == player) {
+            throw new RuntimeException("Invalid game code " + gameCode + " or invalid numericCode " + numericCode);
+        } else if (null != player.getCode()) {
+            throw new RuntimeException("Player already entered for this id " + numericCode);
+        } else {
+            if (StringUtils.isEmpty(nickName)) {
+                throw new RuntimeException("Please choose nick name");
+            }
+            player.setCode(CommonUtil.getSmallCapRandomString((short)6));
+            if (!StringUtils.isEmpty(nickName) && nickName.length() > 10) {
+                throw new RuntimeException("Choose smaller nick name");
+            }
+            player.setNickName(nickName);
+            String playerCode = this.playerService.updatePlayer(player).getCode();
+            GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
+                    Collections.singletonMap("message", nickName + " has joined game")
+            );
+            return playerCode;
+        }
+    }
+
 
     /**
      * leader can set trump and setLeader should work only if there is no move in progress
@@ -657,6 +691,21 @@ public class GamerServiceImpl implements GamerService {
         } else if (null == game.getCurrentPlayer()) {
             gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay()
                     .concat(" Admin  choose winner for current set \n"));
+        }
+
+        boolean canNewGameBeStarted = true;
+        if (Boolean.TRUE.equals(gameStateDTO.getCanGameBeStarted())) {
+            if (null != gameStateDTO.getPlayerInfoDTOS()) {
+                for (PlayerInfoDTO playerInfoDTO: gameStateDTO.getPlayerInfoDTOS()) {
+                    if (playerInfoDTO.getCardsLeft() == 0) {
+                        continue;
+                    }
+                    canNewGameBeStarted = false;
+                }
+            }
+        }
+        if (canNewGameBeStarted) {
+            gameStateDTO.setCanGameBeStarted(false);
         }
         return gameStateDTO;
     }

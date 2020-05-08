@@ -7,9 +7,9 @@ import java.util.List;
 public interface PlayerService {
     void createPlayersInGame(String gameCode, short numberOfPlayers);
 
-    String enterGame(short numericCode, String gameCode, String nickName);
-
     List<Player> getByGameCode(String gameCode);
+
+    Player updatePlayer(Player player);
 
     Player getByGameCodeAndNumericCode(String gameCode, short numericCode);
 
