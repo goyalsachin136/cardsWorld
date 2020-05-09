@@ -118,7 +118,7 @@ public class GamerServiceImpl implements GamerService {
             player.setNickName(nickName);
             String playerCode = this.playerService.updatePlayer(player).getCode();
             GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
-                    Collections.singletonMap("message", nickName + " has joined game")
+                    Collections.singletonMap("message", "welcome " + nickName)
             );
             return playerCode;
         }
@@ -507,7 +507,8 @@ public class GamerServiceImpl implements GamerService {
 
     private List<PlayerInfoDTO> getFromCardSetListAndPlayersList(List<CardSet> cardSets, List<Player> players,
                                                                  Map<Short, Integer> playerNumericCodeToPointsMap,
-                                                                 Player requestedPlayer) {
+                                                                 Player requestedPlayer,
+                                                                 Short currentPlayer) {
        Map<String, Long> playerCodeToSetsWonCount = cardSets.stream()
                .filter(cardSet -> null != cardSet.getWinnerPlayerCode())
                .collect(Collectors.groupingBy(CardSet::getWinnerPlayerCode, Collectors.counting()));
@@ -517,6 +518,9 @@ public class GamerServiceImpl implements GamerService {
         short counter = 3;
        for (Player player: players) {
            PlayerInfoDTO playerInfoDTO = new PlayerInfoDTO();
+           if (player.getNumericCode().equals(currentPlayer)) {
+               playerInfoDTO.setToMove(true);
+           }
            //playerInfoDTO.setNumericCode(player.getNumericCode());
            if (isNumericCodeResetDone) {
                if (counter == 5) {
@@ -630,7 +634,7 @@ public class GamerServiceImpl implements GamerService {
             }
         }
         gameStateDTO.setPlayerInfoDTOS(this.getFromCardSetListAndPlayersList(cardSets, players, playerNumericCodeToPointsMap,
-                player));
+                player, game.getCurrentPlayer()));
 
 
 

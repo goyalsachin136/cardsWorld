@@ -15,4 +15,5 @@ public class PlayerInfoDTO {
     private short cardsLeft;
     private Integer points;
     private String nickName;
+    private boolean toMove;
 }
