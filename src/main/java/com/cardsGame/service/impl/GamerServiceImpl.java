@@ -104,8 +104,8 @@ public class GamerServiceImpl implements GamerService {
         if (null == player) {
             throw new RuntimeException("Invalid game code " + gameCode + " or invalid numericCode " + numericCode);
         } else if (null != player.getCode()) {
-            return player.getCode();
-            //throw new RuntimeException("Player already entered for this id " + numericCode);
+            //return player.getCode();
+            throw new RuntimeException("Player already entered for this id " + numericCode);
         } else {
             if (StringUtils.isEmpty(nickName)) {
                 throw new RuntimeException("Please choose nick name");
