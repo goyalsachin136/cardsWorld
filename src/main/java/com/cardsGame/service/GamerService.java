@@ -2,6 +2,7 @@ package com.cardsGame.service;
 
 import com.cardsGame.dto.GameStateDTO;
 import com.cardsGame.dto.PlayerGamePanelDTO;
+import com.cardsGame.model.Game;
 
 public interface GamerService {
 
@@ -10,6 +11,8 @@ public interface GamerService {
     void setLeader(String gameCode, String playerCode);
 
     String enterGame(short numericCode, String gameCode, String nickName);
+
+    Game findLatestGame();
 
     void setTrump(short trump, String gameCode, String playerCode);
 

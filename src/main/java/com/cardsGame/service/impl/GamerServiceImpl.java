@@ -91,6 +91,10 @@ public class GamerServiceImpl implements GamerService {
     }
 
     @Override
+    public Game findLatestGame() {
+        return this.gameRepository.findFirst1ByOrderByIdDesc();
+    }
+    @Override
     public String enterGame(short numericCode, String gameCode, String nickName) {
         Game game = this.gameRepository.findByCode(gameCode);
         if (null == game) {

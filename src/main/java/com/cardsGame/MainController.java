@@ -3,6 +3,7 @@ package com.cardsGame;
 import com.cardsGame.dto.GameStateDTO;
 import com.cardsGame.dto.PlayerGamePanelDTO;
 import com.cardsGame.dto.ResponseDTO;
+import com.cardsGame.model.Game;
 import com.cardsGame.service.GamerService;
 import com.cardsGame.service.PlayerService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import javax.servlet.http.HttpServletRequest;
 
 @Controller // This means that this class is a Controller
-@RequestMapping(path="/demo") // This means URL's start with /demo (after Application path)
+//@RequestMapping(path="/demo") // This means URL's start with /demo (after Application path)
 public class MainController {
 
     @Autowired
@@ -24,6 +25,14 @@ public class MainController {
 
     @Autowired
     private PlayerService playerService;
+
+    @GetMapping(path="/healthcheck")
+    public @ResponseBody
+    ResponseDTO healthcheck() {
+        System.out.println("healthcheck");
+        Game game = this.gamerService.findLatestGame();
+        return new ResponseDTO("latestGame", null != game ? game.getCode() : null);
+    }
 
     @PostMapping(path="/addGame", produces = { "application/json" }) // Map ONLY POST Requests
     public @ResponseBody
