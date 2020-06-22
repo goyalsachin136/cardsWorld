@@ -123,6 +123,10 @@ public class GamerServiceImpl implements GamerService {
             GamerServiceImpl.pusher.trigger(gameCode, "player-entered",
                     Collections.singletonMap("message", "welcome " + nickName)
             );
+            List<Player> players = this.playerService.getByGameCode(gameCode);
+            if (players.stream().filter(playerHere -> null != playerHere.getCode()).count() == game.getNumberOfPlayers()) {
+                this.distributeCards(5, gameCode);
+            }
             return playerCode;
         }
     }
@@ -174,12 +178,16 @@ public class GamerServiceImpl implements GamerService {
         if (null == player) {
             throw new RuntimeException("Invalid player code");
         }
+        if (player.getAllCards().size() != 5) {
+            throw new RuntimeException("Trump can be choose when you have 5 cards in hand");
+        }
         game.setTrumpSetByPlayerCode(player.getCode());
         game.setCurrentPlayer(player.getNumericCode());
         this.gameRepository.save(game);
         pusher.trigger(gameCode, "set-trump",
                 Collections.singletonMap("message", "Trump set by player " + player.getNickName())
         );
+        this.distributeCards(null, gameCode);
     }
 
     @Override
@@ -666,11 +674,11 @@ public class GamerServiceImpl implements GamerService {
         if (cardSets.isEmpty()) {
 
             if (players.get(0).getAllCards().size() != game.getNumberOfCards() / game.getNumberOfPlayers()) {
-                gameStateDTO.setGameStateToDisplay("Admin distribute all cards please\n");
+                //gameStateDTO.setGameStateToDisplay("Admin distribute all cards please\n");
             }
 
             if (null == game.getTrumpCard()) {
-                gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" Choose trump \n"));
+                //gameStateDTO.setGameStateToDisplay(gameStateDTO.getGameStateToDisplay().concat(" Choose trump \n"));
                 return gameStateDTO;
             }
 
